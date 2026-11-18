@@ -39,7 +39,7 @@ data class Filters(
 enum class SourceGroup(val label: String) { PUBLIC_REGISTRY("Public registry"), LOCAL_NETWORK("Local network"), IMPORTED("Imported") }
 
 fun DiscoverySource.group() = when (this) {
-    DiscoverySource.OSM_SURVEILLANCE -> SourceGroup.PUBLIC_REGISTRY
+    DiscoverySource.OSM_SURVEILLANCE, DiscoverySource.LUFOP_SPEED_CAMERA -> SourceGroup.PUBLIC_REGISTRY
     DiscoverySource.IMPORTED_REGISTRY, DiscoverySource.MANUAL -> SourceGroup.IMPORTED
     else -> SourceGroup.LOCAL_NETWORK
 }

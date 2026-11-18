@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -16,6 +18,12 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Lufop key: local.properties (lufop.apiKey=...) locally, LUFOP_API_KEY env/secret in CI. Never commit it.
+        val localProps = Properties().apply {
+            rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+        }
+        val lufopKey = (localProps.getProperty("lufop.apiKey") ?: System.getenv("LUFOP_API_KEY") ?: "").trim()
+        buildConfigField("String", "LUFOP_API_KEY", "\"$lufopKey\"")
     }
 
     buildTypes {

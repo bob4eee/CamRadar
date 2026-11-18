@@ -41,6 +41,74 @@ class UrlConnectionFetcher(private val userAgent: String = "CamRadar/1.0 (Androi
             conn.disconnect()
         }
     }
+
+    fun get(url: String, timeoutMs: Int): String {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.setRequestProperty("User-Agent", userAgent)
+            val code = conn.responseCode
+            if (code !in 200..299) throw IOException("HTTP $code")
+            return conn.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            conn.disconnect()
+        }
+    }
+}
+
+/**
+ * Speed/red-light cameras from the Lufop API (https://api.lufop.net). Needs a personal key.
+ * `m` is a bounding-box margin, roughly m=10 per km. Free plan covers FR/BE/CH only.
+ */
+class LufopSource(
+    private val apiKey: String,
+    private val get: (url: String, timeoutMs: Int) -> String,
+    private val endpoint: String = "https://api.lufop.net/api",
+    private val timeoutMs: Int = 20_000,
+    private val clock: () -> Long = System::currentTimeMillis,
+) {
+    val enabled get() = apiKey.isNotBlank()
+
+    fun buildUrl(center: LatLon, radiusMeters: Int): String {
+        val m = (radiusMeters / 100).coerceIn(1, 2000)
+        return "$endpoint?key=${URLEncoder.encode(apiKey, "UTF-8")}&format=json&nbr=200&q=${center.lat},${center.lon}&m=$m"
+    }
+
+    fun fetch(center: LatLon, radiusMeters: Int): List<Camera> =
+        if (!enabled) emptyList() else LufopParser.parse(get(buildUrl(center, radiusMeters), timeoutMs), clock())
+}
+
+object LufopParser {
+    private val json = Json { ignoreUnknownKeys = true }
+
+    fun parse(body: String, nowMs: Long): List<Camera> {
+        val root = json.parseToJsonElement(body)
+        val arr = (root as? kotlinx.serialization.json.JsonArray)
+            ?: throw IOException("Lufop: " + body.take(200))
+        return arr.mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            fun str(k: String) = o[k]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+            val id = str("ID") ?: return@mapNotNull null
+            val lat = str("lat")?.toDoubleOrNull() ?: return@mapNotNull null
+            val lon = str("lng")?.toDoubleOrNull() ?: return@mapNotNull null
+            Camera(
+                id = "lufop:$id",
+                name = str("name") ?: "Speed camera",
+                location = LatLon(lat, lon),
+                locationConfidence = LocationConfidence.EXACT_REGISTERED,
+                category = CameraCategory.TRAFFIC,
+                source = DiscoverySource.LUFOP_SPEED_CAMERA,
+                sourceDetail = listOfNotNull(
+                    str("vitesse")?.let { "$it km/h" },
+                    str("voie"), str("commune"),
+                    str("azimut")?.let { "azimuth $it°" },
+                    str("update")?.let { "updated $it" },
+                ).joinToString(", "),
+                lastSeenEpochMs = nowMs,
+            )
+        }
+    }
 }
 
 /**
