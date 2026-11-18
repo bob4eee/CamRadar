@@ -23,7 +23,7 @@ OSM coverage of cameras varies a lot between cities, and many installations aren
 
 ## Build and install
 
-Requirements: Android Studio Ladybug (2024.2) or newer, JDK 17, Android SDK 35.
+Requirements: Android Studio Ladybug (2024.2) or newer, JDK 17, Android SDK 34.
 
 ```bash
 # Open the folder in Android Studio and let it sync. Studio creates the Gradle wrapper jar.
