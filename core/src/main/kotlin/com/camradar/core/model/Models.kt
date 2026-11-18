@@ -5,6 +5,7 @@ import com.camradar.core.geo.LatLon
 /** Where a camera record came from. Shown to the user on every entry. */
 enum class DiscoverySource(val label: String) {
     OSM_SURVEILLANCE("OpenStreetMap surveillance registry"),
+    LUFOP_SPEED_CAMERA("Lufop speed camera database"),
     IMPORTED_REGISTRY("Imported camera registry (CSV)"),
     LOCAL_ONVIF("Local network: ONVIF WS-Discovery"),
     LOCAL_SSDP("Local network: UPnP/SSDP"),

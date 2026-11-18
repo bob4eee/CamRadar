@@ -1,11 +1,13 @@
 package com.camradar.di
 
 import android.content.Context
+import com.camradar.BuildConfig
 import com.camradar.core.discovery.LocalDiscoveryEngine
 import com.camradar.core.discovery.NetTransport
 import com.camradar.core.discovery.SocketTransport
 import com.camradar.core.geo.LatLon
 import com.camradar.core.geo.LocationSource
+import com.camradar.core.geo.LufopSource
 import com.camradar.core.geo.OverpassSource
 import com.camradar.core.geo.SimulatedLocationSource
 import com.camradar.core.geo.UrlConnectionFetcher
@@ -33,9 +35,19 @@ class AppContainer(context: Context, o: Overrides = Overrides()) {
     val settings = SettingsStore(context)
     val networkInfo = AndroidNetworkInfo(context)
     val engine = LocalDiscoveryEngine(o.transport ?: SocketTransport())
-    private val overpass = OverpassSource(UrlConnectionFetcher())
+    private val fetcher = UrlConnectionFetcher()
+    private val overpass = OverpassSource(fetcher)
+    private val lufop = LufopSource(BuildConfig.LUFOP_API_KEY, fetcher::get)
+
+    /** OSM + Lufop; one source failing still returns the other's results. */
     private val remoteGeo: suspend (LatLon, Int) -> List<Camera> =
-        o.remoteGeo ?: { c, r -> withContext(Dispatchers.IO) { overpass.fetch(c, r) } }
+        o.remoteGeo ?: { c, r ->
+            withContext(Dispatchers.IO) {
+                val results = listOf({ overpass.fetch(c, r) }, { lufop.fetch(c, r) }).map { runCatching(it) }
+                if (results.all { it.isFailure }) throw results.first().exceptionOrNull()!!
+                results.flatMap { it.getOrDefault(emptyList()) }
+            }
+        }
     val geoService = GeoDiscoveryService(remoteGeo, repository)
     val realLocation: LocationSource = o.location ?: FusedLocationSource(context)
 
